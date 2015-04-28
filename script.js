@@ -1,78 +1,136 @@
-/**
- * Here's where our JavaScript goes
- */
+// Demonstration of multiple force acting on
+// bodies (Mover class)
+// Bodies experience gravity continuously
+// Bodies experience fluid resistance when in "water"
 
-// We still define our variables here
-var lastSecond;
-var c;
+// Five moving bodies
+var movers = [];
 
-/**
- * We're using the p5 "instance mode" for this new structure
- * http://p5js.org/learn/examples/Instance_Mode_Instantiation.php
- * So that we can use the function attribute `sketch` to access p5 functions
- */
-var mySketch = new p5(function(sketch) {
+// Liquid
+var liquid;
 
+function setup() {
+  createCanvas(640, 360);
+  reset();
+  // Create liquid object
+  liquid = new Liquid(0, height/2, width, height/2, 0.1);
+}
 
-	function getRandomColor() {
-		var r = sketch.random(0,255);
-		var g = sketch.random(0,255);
-		var b = sketch.random(0,255);
+function draw() {
+  background(255,140,0);
 
-		return sketch.color(
-			sketch.floor(r),
-			sketch.floor(g),
-			sketch.floor(b)
-		);
-	};
+  // Draw water
+  liquid.display();
 
+  for (var i = 1; i < movers.length; i++) {
 
-	function mousePressed() {
-		var isFullscreen = sketch.fullscreen();
-		sketch.fullscreen(!isFullscreen);
-	}
+    // Is the Mover in the liquid?
+    if (liquid.contains(movers[i])) {
+      // Calculate drag force
+      var dragForce = liquid.calculateDrag(movers[i]);
+      // Apply drag force to Mover
+      movers[i].applyForce(dragForce);
+    }
 
+    // Gravity is scaled by mass here!
+        var gravity = createVector(0, 0.2*movers[i].mass);
+        // Apply gravity
+        movers[i].applyForce(gravity);
 
-	function windowResized() {
-		sketch.resizeCanvas(sketch.windowWidth, sketch.windowHeight);
-	}
+        // Update and display
+        movers[i].update();
+        movers[i].display();
+        movers[i].checkEdges();
+      }
 
-	/**
-   * Same as `function setup() {}` before, but written a different way
-   * using our namespace.
-   */
-	sketch.setup = function() {
-		sketch.createCanvas(sketch.windowWidth, sketch.windowHeight);
-		lastSecond = sketch.second();
-		c = getRandomColor();
-	}
-
-	/**
-   * Same as `function setup() {}` before, but written a different way
-   * using our namespace.
-   */
-	sketch.draw = function() {
-		sketch.background(0,0,0);
-
-		if(sketch.lastSecond !== sketch.second()) {
-			sketch.lastSecond = sketch.second();
-			c = getRandomColor();
-		}
-
-		sketch.fill(c);
-		// random rect
-		sketch.rect(
-			sketch.minute(),
-			sketch.second(),
-			sketch.day()+sketch.hour(),
-			sketch.month()+sketch.hour()
-		);
-
-		sketch.textSize(20);
-		sketch.fill(255,255,255);
-		sketch.noStroke();
-		sketch.text(sketch.hour()+":"+sketch.minute()+":"+sketch.second(), 10, sketch.windowHeight-10);
-	}
+    }
 
 
-});
+    function mousePressed() {
+      reset();
+    }
+
+    // Restart all the Mover objects randomly
+    function reset() {
+      for (var i = 0; i < 9; i++) {
+        movers[i] = new Mover(random(1, 4), 50+i*80, 1);
+      }
+    }
+
+    var Liquid = function(x, y, w, h, c) {
+      this.x = x;
+      this.y = y;
+      this.w = w;
+      this.h = h;
+      this.c = c;
+    };
+
+    // Is the Mover in the Liquid?
+    Liquid.prototype.contains = function(m) {
+      var l = m.position;
+      return l.x > this.x && l.x < this.x + this.w &&
+             l.y > this.y && l.y < this.y + this.h;
+    };
+
+    // Calculate drag force
+    Liquid.prototype.calculateDrag = function(m) {
+      // Magnitude is coefficient * speed squared
+      var speed = m.velocity.mag();
+  var dragMagnitude = this.c * speed * speed;
+
+  // Direction is inverse of velocity
+  var dragForce = m.velocity.copy();
+  dragForce.mult(-2);
+
+  // Scale according to magnitude
+  // dragForce.setMag(dragMagnitude);
+  dragForce.normalize();
+  dragForce.mult(dragMagnitude);
+  return dragForce;
+};
+
+Liquid.prototype.display = function() {
+  noStroke();
+  fill(20);
+  rect(this.x, this.y, this.w, this.h);
+};
+
+function Mover(m,x,y) {
+  this.mass = m;
+  this.position = createVector(x,y);
+  this.velocity = createVector(0,0);
+  this.acceleration = createVector(0,0);
+}
+
+// Newton's 2nd law: F = M * A
+// or A = F / M
+Mover.prototype.applyForce = function(force) {
+  var f = p5.Vector.div(force,this.mass);
+  this.acceleration.add(f);
+};
+
+Mover.prototype.update = function() {
+  // Velocity changes according to acceleration
+  this.velocity.add(this.acceleration);
+  // position changes by velocity
+  this.position.add(this.velocity);
+  // We must clear acceleration each frame
+  this.acceleration.mult(0);
+};
+
+Mover.prototype.display = function() {
+  stroke(0);
+  strokeWeight(2);
+  fill(255,127);
+  ellipse(this.position.x,this.position.y,this.mass*16,this.mass*16);
+};
+
+// Bounce off bottom of window
+Mover.prototype.checkEdges = function() {
+  if (this.position.y > height) {
+    // A little dampening when hitting the bottom
+    this.velocity.y *= -0.9;
+    this.position.y = height;
+  }
+};
+
